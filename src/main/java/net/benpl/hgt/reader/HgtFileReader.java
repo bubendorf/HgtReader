@@ -21,6 +21,7 @@ import org.openstreetmap.osmosis.core.task.v0_6.Sink;
 import javax.media.jai.*;
 import javax.media.jai.registry.RIFRegistry;
 import java.awt.*;
+import java.awt.image.Raster;
 import java.awt.image.renderable.ParameterBlock;
 import java.awt.image.renderable.RenderedImageFactory;
 import java.io.DataInputStream;
@@ -81,6 +82,10 @@ public class HgtFileReader implements RunnableSource {
     private double maxLat;
     private double minLat;
 
+    private boolean writeContourLines = true;
+    private boolean writeHgtNodes = false;
+    private boolean writeRasterNodes = false;
+
     private int pixels; // 1201 or 3601
     private double resolution;
     private AffineTransformation jtsTransformation;
@@ -120,16 +125,7 @@ public class HgtFileReader implements RunnableSource {
             LOG.log(Level.INFO, String.format("minLat: %f, maxLat: %f", minLat - resolution / 2, maxLat + resolution / 2));
 
             PlanarImage tiledImage = buildImage(words);
-            if (oversampling != 1) {
-                tiledImage = resizeImage(tiledImage, tiledImage.getWidth() * oversampling);
-            }
-
-            Collection<LineString> lines = buildContourLines(tiledImage);
-
             initOsmVariables();
-
-            LOG.log(Level.INFO, "Write to output stream ... BEGIN");
-
             sorter = new EntitySorter(new EntityContainerComparator(new EntityByTypeThenIdComparator()), false);
             sorter.setSink(sink);
             sorter.initialize(Collections.emptyMap());
@@ -137,33 +133,84 @@ public class HgtFileReader implements RunnableSource {
             final BoundContainer boundContainer = new BoundContainer(
                     new Bound(maxLon + resolution / 2 / fixFactor, minLon - resolution / 2 / fixFactor,
                             maxLat + resolution / 2 / fixFactor, minLat - resolution / 2 / fixFactor, "https://www.benpl.net/thegoat/about.html"));
+            LOG.log(Level.FINER, "BoundContainer= " + boundContainer.getEntity().toString());
             sorter.process(boundContainer);
 
-            LOG.log(Level.FINER, "BoundContainer= " + boundContainer.getEntity().toString());
+            if (writeHgtNodes && ! writeRasterNodes) {
+                // DEBUG: Add the HGT Points to the output
+                LOG.log(Level.INFO, "Write HGT nodes ... BEGIN");
+                double lonStep = (maxLon - minLon) / (pixels - 1);
+                double latStep = (maxLat - minLat) / (pixels - 1);
+                for (int y = 0; y < pixels; y++) {
+                    double latitude = minLat + y * latStep;
+                    for (int x = 0; x < pixels; x++) {
+                        double longitude = minLon + x * lonStep;
+                        Node osmNode = new Node(
+                                new CommonEntityData(nodeId++, 1, timestamp, osmUser, 0),
+                                latitude, longitude);
 
-            for (LineString line : lines) {
-                int elev = ((Double) line.getUserData()).intValue() / eleMultiply;
-                if (elev <= 0 || elev > 9000) {
-                    continue;
+                        int index = pixels * (pixels - y - 1) + x;
+                        int ele = words[index] / eleMultiply;
+                        osmNode.getTags().add(new Tag(elevKey, Integer.toString(ele)));
+                        sink.process(new NodeContainer(osmNode));
+                    }
                 }
-                Geometry simplified = line;
-                if (rdpDistance > 0) {
-                    simplified = DouglasPeuckerSimplifier.simplify(line, rdpDistance);
-                }
-                if (!simplified.isEmpty()) {
-                    simplified.apply(jtsTransformation);
-                    handleLineString((LineString)simplified, elev, sorter);
-                }
+                LOG.log(Level.INFO, "Write HGT nodes ... END");
             }
 
+            if (oversampling > 1) {
+                tiledImage = resizeImage(tiledImage, tiledImage.getWidth() * oversampling);
+            }
+
+            if (writeRasterNodes) {
+                // DEBUG: Add the tiledImage to the output
+                LOG.log(Level.INFO, "Write HGT and Raster nodes ... BEGIN");
+                int imageWidth = tiledImage.getWidth();
+                final Raster imageData = tiledImage.getData();
+                double lonStep = (maxLon - minLon) / (imageWidth - 1);
+                double latStep = (maxLat - minLat) / (imageWidth - 1);
+                for (int y = 0; y < imageWidth; y++) {
+                    double latitude = minLat + y * latStep;
+                    for (int x = 0; x < imageWidth; x++) {
+                        double longitude = minLon + x * lonStep;
+                        Node osmNode = new Node(
+                                new CommonEntityData(nodeId++, 1, timestamp, osmUser, 0),
+                                latitude, longitude);
+
+                        double ele = imageData.getSampleDouble(x, (imageWidth - y - 1), 0) / eleMultiply;
+                        osmNode.getTags().add(new Tag(elevKey, Double.toString(ele)));
+                        sink.process(new NodeContainer(osmNode));
+                    }
+                }
+                LOG.log(Level.INFO, "Write HGT and Raster nodes ... END");
+            }
+
+            if (writeContourLines) {
+                Collection<LineString> lines = buildContourLines(tiledImage);
+                LOG.log(Level.INFO, "Write contour lines to output stream ... BEGIN");
+                for (LineString line : lines) {
+                    int elev = ((Double) line.getUserData()).intValue() / eleMultiply;
+                    if (elev <= 0 || elev > 9000) {
+                        continue;
+                    }
+                    Geometry simplified = line;
+                    if (rdpDistance > 0) {
+                        simplified = DouglasPeuckerSimplifier.simplify(line, rdpDistance);
+                    }
+                    if (!simplified.isEmpty()) {
+                        simplified.apply(jtsTransformation);
+                        handleLineString((LineString) simplified, elev, sorter);
+                    }
+                }
+                LOG.log(Level.INFO, "Write to output stream ... END");
+            }
             sorter.complete();
-
-            LOG.log(Level.INFO, "Write to output stream ... END");
-
         } catch (Exception e) {
             throw new Error(e);
         } finally {
-            if (sorter != null) sorter.close();
+            if (sorter != null) {
+                sorter.close();
+            }
         }
     }
 
@@ -171,13 +218,15 @@ public class HgtFileReader implements RunnableSource {
      * Loads HGT file into buffer, and initializes relevant global variables
      */
     private Integer[] loadHgtFile() throws IOException {
-        if (!hgtFile.isFile()) throw new Error("File " + hgtFile.getAbsolutePath() + " not exist");
+        if (!hgtFile.isFile()) {
+            throw new Error("File " + hgtFile.getAbsolutePath() + " not exist");
+        }
 
         String filename = hgtFile.getName().toLowerCase();
 
-        if (!filename.endsWith(".hgt") || filename.length() != 11)
+        if (!filename.endsWith(".hgt") || filename.length() != 11) {
             throw new Error(String.format("File name %s invalid. It should look like [N28E086.hgt].", hgtFile.getName()));
-
+        }
         char ch0 = filename.charAt(0);
         char ch3 = filename.charAt(3);
         minLat = Integer.parseInt(filename.substring(1, 3));
@@ -185,8 +234,12 @@ public class HgtFileReader implements RunnableSource {
         if ((ch0 != 'n' && ch0 != 's') || (ch3 != 'w' && ch3 != 'e') || minLat > 90 || minLon > 180) {
             throw new Error(String.format("File name %s invalid. It should look like [N28E086.hgt].", hgtFile.getName()));
         } else {
-            if (ch0 == 's') minLat = -minLat;
-            if (ch3 == 'w') minLon = -minLon;
+            if (ch0 == 's') {
+                minLat = -minLat;
+            }
+            if (ch3 == 'w') {
+                minLon = -minLon;
+            }
         }
 
         maxLon = minLon + 1;
@@ -442,5 +495,17 @@ public class HgtFileReader implements RunnableSource {
 
     public void setMaxNodesPerWay(int maxNodesPerWay) {
         this.maxNodesPerWay = mediumEle;
+    }
+
+    public void setWriteContourLines(boolean writeContourLines) {
+        this.writeContourLines = writeContourLines;
+    }
+
+    public void setWriteHgtNodes(boolean writeHgtNodes) {
+        this.writeHgtNodes = writeHgtNodes;
+    }
+
+    public void setWriteRasterNodes(boolean writeRasterNodes) {
+        this.writeRasterNodes = writeRasterNodes;
     }
 }

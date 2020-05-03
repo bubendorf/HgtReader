@@ -26,6 +26,10 @@ class HgtFileReaderFactory extends TaskManagerFactory {
         int mediumElevation = getIntegerArgument(taskConfig, "medium", 100);
         int maxNodesPerWay = getIntegerArgument(taskConfig, "max-nodes-per-way", 0);
 
+        boolean writeContourLines = getBooleanArgument(taskConfig, "write-contour-ways", true);
+        boolean writeHgtNodes = getBooleanArgument(taskConfig, "write-hgt-nodes", false);
+        boolean writeRasterNodes = getBooleanArgument(taskConfig, "write-raster-nodes", false);
+
         HgtFileReader task = new HgtFileReader(filePath, interval, elevKey, contourKey, contourVal,
                 contourExtKey, contourExtMajor, contourExtMedium, contourExtMinor);
         task.setOversampling(oversampling);
@@ -34,6 +38,9 @@ class HgtFileReaderFactory extends TaskManagerFactory {
         task.setMajorEle(majorElevation);
         task.setMediumEle(mediumElevation);
         task.setMaxNodesPerWay(maxNodesPerWay);
+        task.setWriteContourLines(writeContourLines);
+        task.setWriteHgtNodes(writeHgtNodes);
+        task.setWriteRasterNodes(writeRasterNodes);
 
         return new RunnableSourceManager(taskConfig.getId(), task, taskConfig.getPipeArgs());
     }
