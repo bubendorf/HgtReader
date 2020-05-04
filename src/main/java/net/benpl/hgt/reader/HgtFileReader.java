@@ -32,6 +32,7 @@ import java.util.*;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import static java.awt.RenderingHints.KEY_RENDERING;
 import static java.awt.RenderingHints.VALUE_RENDER_QUALITY;
@@ -52,6 +53,7 @@ public class HgtFileReader implements RunnableSource {
 
     private final File hgtFile;
     private final int interval;
+    private String levels;
     private final String elevKey;
     private final String contourKey;
     private final String contourVal;
@@ -62,6 +64,7 @@ public class HgtFileReader implements RunnableSource {
 
     private int oversampling = 1;
     private int eleMultiply = 1;
+    private int eleOffset = 0;
     private double rdpDistance = 0.0;
 
     private int majorEle = 500;
@@ -150,16 +153,19 @@ public class HgtFileReader implements RunnableSource {
                                 latitude, longitude);
 
                         int index = pixels * (pixels - y - 1) + x;
-                        int ele = words[index] / eleMultiply;
+                        int ele = (words[index] - eleOffset) / eleMultiply;
                         osmNode.getTags().add(new Tag(elevKey, Integer.toString(ele)));
                         sink.process(new NodeContainer(osmNode));
                     }
                 }
                 LOG.log(Level.INFO, "Write HGT nodes ... END");
             }
+            words = null; // forget the data!
 
             if (oversampling > 1) {
-                tiledImage = resizeImage(tiledImage, tiledImage.getWidth() * oversampling);
+                PlanarImage orginalImage = tiledImage;
+                tiledImage = resizeImage(orginalImage, orginalImage.getWidth() * oversampling);
+                orginalImage.dispose();
             }
 
             if (writeRasterNodes) {
@@ -177,7 +183,7 @@ public class HgtFileReader implements RunnableSource {
                                 new CommonEntityData(nodeId++, 1, timestamp, osmUser, 0),
                                 latitude, longitude);
 
-                        double ele = imageData.getSampleDouble(x, (imageWidth - y - 1), 0) / eleMultiply;
+                        double ele = (imageData.getSampleDouble(x, (imageWidth - y - 1), 0) - eleOffset) / eleMultiply;
                         osmNode.getTags().add(new Tag(elevKey, Double.toString(ele)));
                         sink.process(new NodeContainer(osmNode));
                     }
@@ -189,7 +195,7 @@ public class HgtFileReader implements RunnableSource {
                 Collection<LineString> lines = buildContourLines(tiledImage);
                 LOG.log(Level.INFO, "Write contour lines to output stream ... BEGIN");
                 for (LineString line : lines) {
-                    int elev = ((Double) line.getUserData()).intValue() / eleMultiply;
+                    int elev = (((Double) line.getUserData()).intValue() - eleOffset) / eleMultiply;
                     if (elev <= 0 || elev > 9000) {
                         continue;
                     }
@@ -225,14 +231,14 @@ public class HgtFileReader implements RunnableSource {
         String filename = hgtFile.getName().toLowerCase();
 
         if (!filename.endsWith(".hgt") || filename.length() != 11) {
-            throw new Error(String.format("File name %s invalid. It should look like [N28E086.hgt].", hgtFile.getName()));
+            throw new Error(String.format("File name %s invalid. It should look like [N47E006.hgt].", hgtFile.getName()));
         }
         char ch0 = filename.charAt(0);
         char ch3 = filename.charAt(3);
         minLat = Integer.parseInt(filename.substring(1, 3));
         minLon = Integer.parseInt(filename.substring(4, 7));
         if ((ch0 != 'n' && ch0 != 's') || (ch3 != 'w' && ch3 != 'e') || minLat > 90 || minLon > 180) {
-            throw new Error(String.format("File name %s invalid. It should look like [N28E086.hgt].", hgtFile.getName()));
+            throw new Error(String.format("File name %s invalid. It should look like [N46E007.hgt].", hgtFile.getName()));
         } else {
             if (ch0 == 's') {
                 minLat = -minLat;
@@ -274,7 +280,7 @@ public class HgtFileReader implements RunnableSource {
             dis.readFully(bytes);
 
             for (int i = 0; i < words.length; i++) {
-                words[i] = eleMultiply *  (((bytes[2 * i] << 8) & 0xff00) | (bytes[2 * i + 1] & 0x00ff));
+                words[i] = eleMultiply *  (((bytes[2 * i] << 8) & 0xff00) | (bytes[2 * i + 1] & 0x00ff)) + eleOffset;
             }
         }
 
@@ -313,12 +319,18 @@ public class HgtFileReader implements RunnableSource {
         pb.setParameter("simplify", Boolean.TRUE);
 
         /*List<Integer> levels = Arrays.asList(400 * eleMultiply, 420 * eleMultiply, 440 * eleMultiply,
-                460 * eleMultiply, 480 * eleMultiply, 500 * eleMultiply);
-        pb.setParameter("levels", levels);*/
-        pb.setParameter("interval", interval * eleMultiply);
+                460 * eleMultiply, 480 * eleMultiply, 500 * eleMultiply); */
+        if (levels != null && levels.length() > 0) {
+            List<Integer> levelInts = Arrays.stream(levels.split(","))
+                    .map(l -> Integer.parseInt(l) * eleMultiply)
+                    .collect(Collectors.toList());
+            pb.setParameter("levels", levelInts);
+        } else {
+            pb.setParameter("interval", interval * eleMultiply);
+        }
 
         pb.setParameter("nodata", Arrays.asList(Double.NaN, Double.POSITIVE_INFINITY,
-                Double.NEGATIVE_INFINITY, Double.MAX_VALUE, -32768, 32768 * eleMultiply));
+                Double.NEGATIVE_INFINITY, Double.MAX_VALUE, -32768, 32768 * eleMultiply + eleOffset));
 
         RenderedOp dest = JAI.create("Contour", pb);
 
@@ -403,7 +415,8 @@ public class HgtFileReader implements RunnableSource {
         boolean lineIsClosed = line.isClosed();
 
         List<Coordinate[]> listOfCoordinates = new ArrayList<>();
-        if (maxNodesPerWay == 0 || allCoordinates.length < maxNodesPerWay) {
+//        System.out.println("ele=" + elev + ", Number of coordinates=" + allCoordinates.length);
+        if (maxNodesPerWay == 0 || allCoordinates.length <= maxNodesPerWay) {
             // No splitting requested or the number of line points is small enough
             listOfCoordinates.add(allCoordinates);
         } else {
@@ -429,6 +442,7 @@ public class HgtFileReader implements RunnableSource {
 
         Node lastNode = null;
         for (Coordinate[] coordinates : listOfCoordinates) {
+//        System.out.println("ele=" + elev + ", Number of coordinates=" + coordinates.length);
             List<WayNode> wayNodes = new ArrayList<>(coordinates.length);
             for (int i = 0; i < coordinates.length; i++) {
                 if (i == coordinates.length - 1 && lineIsClosed) {
@@ -473,12 +487,20 @@ public class HgtFileReader implements RunnableSource {
         }
     }
 
+    public void setLevels(String levels) {
+        this.levels = levels;
+    }
+
     public void setOversampling(int oversampling) {
         this.oversampling = oversampling;
     }
 
     public void setEleMultiply(int eleMultiply) {
         this.eleMultiply = eleMultiply;
+    }
+
+    public void setEleOffset(int eleOffset) {
+        this.eleOffset = eleOffset;
     }
 
     public void setRdpDistance(double rdpDistance) {
@@ -494,7 +516,7 @@ public class HgtFileReader implements RunnableSource {
     }
 
     public void setMaxNodesPerWay(int maxNodesPerWay) {
-        this.maxNodesPerWay = mediumEle;
+        this.maxNodesPerWay = maxNodesPerWay;
     }
 
     public void setWriteContourLines(boolean writeContourLines) {

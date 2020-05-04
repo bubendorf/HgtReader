@@ -10,6 +10,7 @@ class HgtFileReaderFactory extends TaskManagerFactory {
     protected TaskManager createTaskManagerImpl(TaskConfiguration taskConfig) {
         String filePath = getStringArgument(taskConfig, "file");
         int interval = getIntegerArgument(taskConfig, "interval", 20);
+        String levels = getStringArgument(taskConfig, "levels", "");
 
         String elevKey = getStringArgument(taskConfig, "elev-key", "ele");
         String contourKey = getStringArgument(taskConfig, "contour-key", "contour");
@@ -21,6 +22,7 @@ class HgtFileReaderFactory extends TaskManagerFactory {
 
         int oversampling = getIntegerArgument(taskConfig, "oversampling", 1);
         int elevationMultiply = getIntegerArgument(taskConfig, "elevation-factor", 1);
+        int elevationOffset = getIntegerArgument(taskConfig, "elevation-offset", 0);
         double rdpDistance = getDoubleArgument(taskConfig, "simplify-contours-epsilon", 0);
         int majorElevation = getIntegerArgument(taskConfig, "major", 500);
         int mediumElevation = getIntegerArgument(taskConfig, "medium", 100);
@@ -32,8 +34,10 @@ class HgtFileReaderFactory extends TaskManagerFactory {
 
         HgtFileReader task = new HgtFileReader(filePath, interval, elevKey, contourKey, contourVal,
                 contourExtKey, contourExtMajor, contourExtMedium, contourExtMinor);
+        task.setLevels(levels);
         task.setOversampling(oversampling);
         task.setEleMultiply(elevationMultiply);
+        task.setEleOffset(elevationOffset);
         task.setRdpDistance(rdpDistance);
         task.setMajorEle(majorElevation);
         task.setMediumEle(mediumElevation);
