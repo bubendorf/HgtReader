@@ -20,20 +20,30 @@ class HgtFileReaderFactory extends TaskManagerFactory {
         String contourExtMedium = getStringArgument(taskConfig, "contour-ext-medium", "elevation_medium");
         String contourExtMinor = getStringArgument(taskConfig, "contour-ext-minor", "elevation_minor");
 
-        int oversampling = getIntegerArgument(taskConfig, "oversampling", 1);
+        double oversampling = getDoubleArgument(taskConfig, "oversampling", 1.0);
         int elevationMultiply = getIntegerArgument(taskConfig, "elevation-factor", 1);
         int elevationOffset = getIntegerArgument(taskConfig, "elevation-offset", 0);
         double rdpDistance = getDoubleArgument(taskConfig, "simplify-contours-epsilon", 0);
         int majorElevation = getIntegerArgument(taskConfig, "major", 500);
         int mediumElevation = getIntegerArgument(taskConfig, "medium", 100);
         int maxNodesPerWay = getIntegerArgument(taskConfig, "max-nodes-per-way", 0);
+        int minNodesPerWay = getIntegerArgument(taskConfig, "min-nodes-per-way", 4);
+        int minNodesPerOpenWay = getIntegerArgument(taskConfig, "min-nodes-per-open-way", 12);
+        int flatThreshold = getIntegerArgument(taskConfig, "flat-threshold", -1);
 
         boolean writeContourLines = getBooleanArgument(taskConfig, "write-contour-ways", true);
         boolean writeHgtNodes = getBooleanArgument(taskConfig, "write-hgt-nodes", false);
         boolean writeRasterNodes = getBooleanArgument(taskConfig, "write-raster-nodes", false);
 
-        HgtFileReader task = new HgtFileReader(filePath, interval, elevKey, contourKey, contourVal,
-                contourExtKey, contourExtMajor, contourExtMedium, contourExtMinor);
+        HgtFileReader task = new HgtFileReader(filePath);
+        task.setInterval(interval);
+        task.setElevKey(elevKey);
+        task.setContourKey(contourKey);
+        task.setContourVal(contourVal);
+        task.setContourExtKey(contourExtKey);
+        task.setContourExtMajor(contourExtMajor);
+        task.setContourExtMedium(contourExtMedium);
+        task.setContourExtMinor(contourExtMinor);
         task.setLevels(levels);
         task.setOversampling(oversampling);
         task.setEleMultiply(elevationMultiply);
@@ -42,9 +52,12 @@ class HgtFileReaderFactory extends TaskManagerFactory {
         task.setMajorEle(majorElevation);
         task.setMediumEle(mediumElevation);
         task.setMaxNodesPerWay(maxNodesPerWay);
+        task.setMinNodesPerWay(minNodesPerWay);
+        task.setMinNodesPerOpenWay(minNodesPerOpenWay);
         task.setWriteContourLines(writeContourLines);
         task.setWriteHgtNodes(writeHgtNodes);
         task.setWriteRasterNodes(writeRasterNodes);
+        task.setFlatThreshold(flatThreshold);
 
         return new RunnableSourceManager(taskConfig.getId(), task, taskConfig.getPipeArgs());
     }
