@@ -1,7 +1,6 @@
 package ch.bubendorf.hgt;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -179,9 +178,7 @@ class Segments {
         assert listConsistent() : "Start: " + startList + "\nEnd: " + endList;
     }
 
-
-
-    boolean sorted(List<Segment> list, Comparator<Segment> comparator) {
+    /*boolean sorted(List<Segment> list, Comparator<Segment> comparator) {
         Segment prev = null;
         for (Segment elem : list) {
             if (prev != null && comparator.compare(prev, elem) > 0) {
@@ -190,14 +187,14 @@ class Segments {
             prev = elem;
         }
         return true;
-    }
+    }*/
 
     /**
      * Informs the segments a new scanline is started
      */
-    public void lineComplete(int line) {
+    public void lineComplete() {
         // look for all the segments that have not been touched during the last scan
-        for (Segment segment : new ArrayList<Segment>(startList)) {
+        for (Segment segment : new ArrayList<>(startList)) {
             // if touched, we can continue using it
             if (segment.touched) {
                 segment.touched = false;
@@ -210,11 +207,10 @@ class Segments {
 
             // can we merge it with an existing one?
             temp.setXY(segment.xStart, segment.yStart, segment.xStart, segment.yStart);
-            Segment mergeTarget = null;
             Segment.MergePoint mergePoint = null;
 
             // end-start is the most efficient merge we can make, try it first
-            mergeTarget = search(endList, temp);
+            Segment mergeTarget = search(endList, temp);
             if (mergeTarget != null) {
                 mergePoint = Segment.MergePoint.END_START;
             } else {
@@ -278,7 +274,7 @@ class Segments {
     /**
      * Returns the merged and eventually simplified segments
      *
-     * @return
+     * @return Merged Segments
      */
     public List<LineString> getMergedSegments() {
         return result;

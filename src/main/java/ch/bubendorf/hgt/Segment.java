@@ -17,7 +17,7 @@ final class Segment {
     static final Comparator<Segment> START_COMPARATOR = new Segment.StartComparator();
     static final Comparator<Segment> END_COMPARATOR = new Segment.EndComparator();
     static final double EPS = 1e-4;
-    static final int DEFAULT_SIZE = 32;
+    static final int DEFAULT_SIZE = 16; // Was 32
 
     /**
      * Modified during the last scanline
@@ -31,25 +31,18 @@ final class Segment {
     double[] ordinates;
 
     int idxFirst;
-
     int idxLast;
 
     double xStart;
-
     double yStart;
-
     double xEnd;
-
     double yEnd;
 
     final boolean simplify;
 
     double dxStart;
-
     double dyStart;
-
     double dxEnd;
-
     double dyEnd;
 
     /**
@@ -96,7 +89,7 @@ final class Segment {
         this(x1, y1, x2, y2, DEFAULT_SIZE, simplify);
     }
 
-    private void addAfterEnd(double x, double y, boolean touch) {
+    public void addAfterEnd(double x, double y) {
         if (simplify && sameSlope(dxEnd, dyEnd, x - xEnd, y - yEnd)) {
             ordinates[idxLast - 2] = x;
             ordinates[idxLast - 1] = y;
@@ -117,9 +110,7 @@ final class Segment {
         }
         xEnd = x;
         yEnd = y;
-        if (touch) {
-            touched = true;
-        }
+        touched = true;
     }
 
     private boolean isConsistent() {
@@ -128,15 +119,7 @@ final class Segment {
         return sameStart && sameEnd;
     }
 
-    public void addAfterEnd(double x, double y) {
-        addAfterEnd(x, y, true);
-    }
-
     public void addBeforeStart(double x, double y) {
-        addBeforeStart(x, y, true);
-    }
-
-    private void addBeforeStart(double x, double y, boolean touch) {
         // ensure we are not adding useless points
         if (simplify && sameSlope(dxStart, dyStart, xStart - x, yStart - y)) {
             ordinates[idxFirst] = x;
@@ -160,9 +143,7 @@ final class Segment {
         }
         xStart = x;
         yStart = y;
-        if (touch) {
-            touched = true;
-        }
+        touched = true;
     }
 
     private boolean sameSlope(double dx1, double dy1, double dx2, double dy2) {
@@ -335,9 +316,9 @@ final class Segment {
         return sb.append("]").toString();
     }
 
-    int getNumCoordinates() {
+    /*int getNumCoordinates() {
         return (idxLast - idxFirst) / 2;
-    }
+    }*/
 
     private static final class StartComparator implements Comparator<Segment> {
 

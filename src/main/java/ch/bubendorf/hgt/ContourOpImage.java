@@ -209,11 +209,10 @@ public class ContourOpImage extends AttributeOpImage {
                         this.noDataNumbers.add(dz);
                     }
                 } else if (oelem instanceof Range) {
-                    Range r = (Range) oelem;
-                    Double min = r.getMin().doubleValue();
-                    Double max = r.getMax().doubleValue();
-                    Range<Double> rd = new Range<>(
-                            min, r.isMinIncluded(), max, r.isMaxIncluded());
+                    Range<Double> r = (Range<Double>) oelem;
+                    Double min = r.getMin();
+                    Double max = r.getMax();
+                    Range<Double> rd = new Range<>(min, r.isMinIncluded(), max, r.isMaxIncluded());
                     this.noDataRanges.add(rd);
 
                 } else {
@@ -265,10 +264,8 @@ public class ContourOpImage extends AttributeOpImage {
         if (ContourDescriptor.CONTOUR_PROPERTY_NAME.equalsIgnoreCase(name)) {
             return List.class;
         }
-
         return super.getAttributeClass(name);
     }
-
 
     /**
      * Controls contour generation.
@@ -280,7 +277,7 @@ public class ContourOpImage extends AttributeOpImage {
         if(contourLevels == null) {
             contourLevels = buildContourLevels();
         }
-        System.out.println("Anzahl Levels: " + contourLevels.size());
+        LOG.log(Level.FINE, "Anzahl Levels: " + contourLevels.size());
         // aggregate all the segments
         Map<Integer, Segments> segments = getContourSegments();
 
@@ -637,7 +634,7 @@ public class ContourOpImage extends AttributeOpImage {
 
             iter1.nextLine();
             iter2.nextLine();
-            lineComplete(segments, y);
+            lineComplete(segments);
             y++;
             if (y % 500 == 0 || lastProgressReport + 60 * 1000L <= System.currentTimeMillis()) {
                 LOG.log(Level.FINER, "Build Contour Segments, line " + y + " / " + (int)(src.getBounds().getMaxY()) +
@@ -646,23 +643,23 @@ public class ContourOpImage extends AttributeOpImage {
             }
         }
         // once more to make it offload all residual segments
-        lineComplete(segments, y);
+        lineComplete(segments);
         LOG.log(Level.INFO, "Calc Contour Segments ... END");
 
         return segments;
     }
 
-    private void lineComplete(Map<Integer, Segments> segments, int line) {
+    private void lineComplete(Map<Integer, Segments> segments) {
         for (Segments s : segments.values()) {
-            s.lineComplete(line);
+            s.lineComplete();
         }
     }
 
     /**
      * Compares h to zero, return 1 if above or equal to zero, -1 otherwise
      *
-     * @param h
-     * @return
+     * @param h The value to check
+     * @return 1 if h is above or equal to zero, -1 otherwise
      */
     private int aboveBelowZero(double h) {
         int result = Double.compare(h, 0.0);
@@ -731,7 +728,7 @@ public class ContourOpImage extends AttributeOpImage {
             return Collections.emptyList();
         }
 
-        System.out.println("MinLevel=" + minVal + ", MaxLevel=" + maxVal);
+        LOG.log(Level.FINE,"MinLevel=" + minVal + ", MaxLevel=" + maxVal);
 
         double z = Math.floor(minVal / contourInterval) * contourInterval;
         if (CompareOp.acompare(z, minVal) < 0) {
