@@ -119,6 +119,8 @@ public class ContourOpImage extends AttributeOpImage {
      */
     private final double smoothAlpha = 0.0;
 
+    private long maxUsedMem = 0L;
+
     /**
      * Control object for Bezier smoothing. Note that length units here
      * are pixels.
@@ -637,13 +639,17 @@ public class ContourOpImage extends AttributeOpImage {
             lineComplete(segments);
             y++;
             if (y % 500 == 0 || lastProgressReport + 60 * 1000L <= System.currentTimeMillis()) {
+                System.gc();
+                long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+                maxUsedMem = Math.max(maxUsedMem, usedMemory);
                 LOG.log(Level.FINER, "Build Contour Segments, line " + y + " / " + (int)(src.getBounds().getMaxY()) +
-                        " (Total mem: " + Runtime.getRuntime().totalMemory() / 1024 / 1024 + " MB)");
+                        " (Used memory: " + usedMemory / 1024 / 1024 + " MB)");
                 lastProgressReport = System.currentTimeMillis();
             }
         }
         // once more to make it offload all residual segments
         lineComplete(segments);
+        LOG.log(Level.FINER, "Max Used memory: " + maxUsedMem / 1024 / 1024 + " MB");
         LOG.log(Level.INFO, "Calc Contour Segments ... END");
 
         return segments;

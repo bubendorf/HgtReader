@@ -18,6 +18,9 @@ repositories {
     maven {
         url "http://maven.geomajas.org/"
     }
+    maven {
+        url "http://maven.geo-solutions.it/"
+    }
     mavenLocal()
     mavenCentral()
 }
@@ -25,9 +28,10 @@ repositories {
 dependencies {
     implementation "javax.media:jai_core:1.1.3"
     implementation "javax.media:jai_codec:1.1.3"
-    implementation "org.jaitools:jt-contour:1.5.0"
+//    implementation "org.jaitools:jt-contour:1.5.0"
     implementation group: 'org.locationtech.jts', name: 'jts-core', version: '1.16.1'
-    compileOnly "org.openstreetmap.osmosis:osmosis-core:0.47.3"
+//    compile group: 'it.geosolutions.jaiext.utilities', name: 'jt-utilities', version: '1.1.14'
+    compileOnly "org.openstreetmap.osmosis:osmosis-core:0.48.0"
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.2'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.6.2'

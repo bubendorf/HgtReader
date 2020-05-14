@@ -2,8 +2,9 @@ package net.benpl.hgt.reader;
 
 import ch.bubendorf.hgt.ContourOpImage;
 import ch.bubendorf.hgt.ImageUtil;
+//import org.jaitools.media.jai.contour.ContourDescriptor;
+//import org.jaitools.media.jai.contour.ContourRIF;
 import org.jaitools.media.jai.contour.ContourDescriptor;
-import org.jaitools.media.jai.contour.ContourRIF;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
@@ -41,9 +42,9 @@ public class HgtFileReader implements RunnableSource {
     static {
         try {
             OperationRegistry registry = JAI.getDefaultInstance().getOperationRegistry();
-            registry.registerDescriptor(new ContourDescriptor());
-            RenderedImageFactory rif = new ContourRIF();
-            RIFRegistry.register(registry, "Contour", "org.jaitools.media.jai", rif);
+//            registry.registerDescriptor(new ContourDescriptor());
+//            RenderedImageFactory rif = new ContourRIF();
+//            RIFRegistry.register(registry, "Contour", "org.jaitools.media.jai", rif);
         } catch (Exception ignored) {
         }
     }
@@ -92,11 +93,12 @@ public class HgtFileReader implements RunnableSource {
     private boolean writeHgtNodes = false;
     private boolean writeRasterNodes = false;
 
-    private int pixels; // 1201 or 3601
+    private int pixels; // 1201 or 3601 (Without oversampling)
     private double resolution;
+    private int seconds; // 3 or 1
     private AffineTransformation jtsTransformation;
 
-    private int minusEins = 0;
+    private int minusEins = 0; // Sollte 1 sein, geht aber nicht korrekt. Das Bicubic macht dann komische Sachen
 
     HgtFileReader(String filePath) {
         hgtFile = new File(filePath);
@@ -114,7 +116,7 @@ public class HgtFileReader implements RunnableSource {
             }
             return oversampling + 1.0 / pixels / 2; // ToDo Stimmt das?
         }
-        return oversampling;
+        return oversampling;// ToDo Stimmt das? Ev. noch -1 einrechnen!
     }
 
     @Override
@@ -132,10 +134,10 @@ public class HgtFileReader implements RunnableSource {
             sorter = new EntitySorter(new EntityContainerComparator(new EntityByTypeThenIdComparator()), false);
             sorter.setSink(sink);
             sorter.initialize(Collections.emptyMap());
-            double fixFactor = calcFixFactor();
+//            double fixFactor = calcFixFactor();
             final BoundContainer boundContainer = new BoundContainer(
-                    new Bound(maxLon + resolution / 2 / fixFactor, minLon - resolution / 2 / fixFactor,
-                            maxLat + resolution / 2 / fixFactor, minLat - resolution / 2 / fixFactor, "https://www.benpl.net/thegoat/about.html"));
+                    new Bound(maxLon + resolution / 2 /*/ fixFactor*/, minLon - resolution / 2 /*/ fixFactor*/,
+                            maxLat + resolution / 2 /*/ fixFactor*/, minLat - resolution / 2 /*/ fixFactor*/, "https://www.benpl.net/thegoat/about.html"));
             LOG.log(Level.FINER, "BoundContainer= " + boundContainer.getEntity().toString());
             sorter.process(boundContainer);
 
@@ -162,10 +164,10 @@ public class HgtFileReader implements RunnableSource {
             }
             words = null; // forget the data!
 
-            if (oversampling > 1) {
+            if (oversampling != 1.0) {
                 LOG.log(Level.INFO, "Oversampling ... BEGIN");
                 PlanarImage orginalImage = tiledImage;
-                tiledImage = ImageUtil.resizeImage(orginalImage, (int) (orginalImage.getWidth() * oversampling) - minusEins);
+                tiledImage = ImageUtil.resizeImage(orginalImage, (int) ((orginalImage.getWidth() - minusEins ) * oversampling) + minusEins);
                 orginalImage.dispose();
                 LOG.log(Level.INFO, "Oversampling ... END");
             }
@@ -299,19 +301,18 @@ public class HgtFileReader implements RunnableSource {
         maxLon = minLon + 1;
         maxLat = minLat + 1;
 
-        int secs;
         long size = hgtFile.length();
         if (size == (3601 * 3601 * 2)) {
             pixels = 3601;
-            secs = 1;
+            seconds = 1;
         } else if (size == (1201 * 1201 * 2)) {
             pixels = 1201;
-            secs = 3;
+            seconds = 3;
         } else {
             throw new Error(hgtFile.getAbsolutePath() + " invalid file size");
         }
 
-        resolution = secs / 3600.0;
+        resolution = seconds / 3600.0;
 
         //
         // Load HGT file
@@ -347,7 +348,7 @@ public class HgtFileReader implements RunnableSource {
     /**
      * Converts tiled image to contour lines
      */
-    private Collection<LineString> buildContourLinesAlt(PlanarImage tiledImage) {
+    /*private Collection<LineString> buildContourLinesAlt(PlanarImage tiledImage) {
         LOG.log(Level.INFO, "Convert to contour lines ... BEGIN");
 
         ParameterBlockJAI pb = new ParameterBlockJAI("Contour");
@@ -378,7 +379,7 @@ public class HgtFileReader implements RunnableSource {
         LOG.log(Level.FINE, "Number of produced lines: " + lines.size());
 
         return lines;
-    }
+    }*/
 
     private Collection<LineString> buildContourLinesNeu(PlanarImage tiledImage) {
         LOG.log(Level.INFO, "Convert to contour lines ... BEGIN");
