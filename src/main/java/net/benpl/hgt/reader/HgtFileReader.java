@@ -2,8 +2,6 @@ package net.benpl.hgt.reader;
 
 import ch.bubendorf.hgt.ContourOpImage;
 import ch.bubendorf.hgt.ImageUtil;
-//import org.jaitools.media.jai.contour.ContourDescriptor;
-//import org.jaitools.media.jai.contour.ContourRIF;
 import org.jaitools.media.jai.contour.ContourDescriptor;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -20,19 +18,22 @@ import org.openstreetmap.osmosis.core.sort.v0_6.EntitySorter;
 import org.openstreetmap.osmosis.core.task.v0_6.RunnableSource;
 import org.openstreetmap.osmosis.core.task.v0_6.Sink;
 
-import javax.media.jai.*;
-import javax.media.jai.registry.RIFRegistry;
+import javax.media.jai.JAI;
+import javax.media.jai.OperationRegistry;
+import javax.media.jai.PlanarImage;
+import javax.media.jai.TiledImage;
 import java.awt.image.Raster;
-import java.awt.image.renderable.RenderedImageFactory;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+//import org.jaitools.media.jai.contour.ContourDescriptor;
+//import org.jaitools.media.jai.contour.ContourRIF;
 
 // https://github.com/eclipse/imagen verwenden!
 public class HgtFileReader implements RunnableSource {
@@ -93,12 +94,9 @@ public class HgtFileReader implements RunnableSource {
     private boolean writeHgtNodes = false;
     private boolean writeRasterNodes = false;
 
-    private int pixels; // 1201 or 3601 (Without oversampling)
+    private int pixels; // 1201 or 3601 (Auch bei Verwendung von oversampling)
     private double resolution;
-    private int seconds; // 3 or 1
     private AffineTransformation jtsTransformation;
-
-    private int minusEins = 0; // Sollte 1 sein, geht aber nicht korrekt. Das Bicubic macht dann komische Sachen
 
     HgtFileReader(String filePath) {
         hgtFile = new File(filePath);
@@ -107,16 +105,6 @@ public class HgtFileReader implements RunnableSource {
     @Override
     public void setSink(Sink sink) {
         this.sink = sink;
-    }
-
-    private double calcFixFactor() {
-        if (minusEins == 0) {
-            if (oversampling == 1) {
-                return 1.0;
-            }
-            return oversampling + 1.0 / pixels / 2; // ToDo Stimmt das?
-        }
-        return oversampling;// ToDo Stimmt das? Ev. noch -1 einrechnen!
     }
 
     @Override
@@ -136,8 +124,8 @@ public class HgtFileReader implements RunnableSource {
             sorter.initialize(Collections.emptyMap());
 //            double fixFactor = calcFixFactor();
             final BoundContainer boundContainer = new BoundContainer(
-                    new Bound(maxLon + resolution / 2 /*/ fixFactor*/, minLon - resolution / 2 /*/ fixFactor*/,
-                            maxLat + resolution / 2 /*/ fixFactor*/, minLat - resolution / 2 /*/ fixFactor*/, "https://www.benpl.net/thegoat/about.html"));
+                    new Bound(maxLon + resolution / 2, minLon - resolution / 2,
+                            maxLat + resolution / 2, minLat - resolution / 2, "https://www.benpl.net/thegoat/about.html"));
             LOG.log(Level.FINER, "BoundContainer= " + boundContainer.getEntity().toString());
             sorter.process(boundContainer);
 
@@ -164,13 +152,14 @@ public class HgtFileReader implements RunnableSource {
             }
             words = null; // forget the data!
 
-            if (oversampling != 1.0) {
+            /*if (oversampling != 1.0) {
                 LOG.log(Level.INFO, "Oversampling ... BEGIN");
                 PlanarImage orginalImage = tiledImage;
                 tiledImage = ImageUtil.resizeImage(orginalImage, (int) ((orginalImage.getWidth() - minusEins ) * oversampling) + minusEins);
                 orginalImage.dispose();
+                LOG.log(Level.INFO, "Image resized to : " + tiledImage.getWidth() + "x" + tiledImage.getHeight());
                 LOG.log(Level.INFO, "Oversampling ... END");
-            }
+            }*/
 
             if (flatThreshold >= 0) {
                 // Eliminate flat surfaces by setting its elevation to NODATA
@@ -200,7 +189,8 @@ public class HgtFileReader implements RunnableSource {
                                     Math.abs(vSouthWest - value) <= flatThreshold &&
                                     Math.abs(vSouthEast - value) <= flatThreshold) {
 //                                System.out.println("x=" + x + ", y=" + y + ", value=" + value);
-                                value = -32768 * eleMultiply + eleOffset;
+//                                value = -32768 * eleMultiply + eleOffset;
+                                value = Integer.MIN_VALUE;
                                 numberOfFlatPoints++;
                             }
                         }
@@ -209,7 +199,17 @@ public class HgtFileReader implements RunnableSource {
                 }
                 tiledImage = noFlatImage;
                 LOG.log(Level.INFO, "Flat Surface Elimination ... END");
-                LOG.log(Level.FINER, "Number of flat points: " + numberOfFlatPoints);
+                int percent = (int) Math.round(100.0 * numberOfFlatPoints / pixels / pixels);
+                LOG.log(Level.FINER, "Number of flat points: " + numberOfFlatPoints + " (" + percent + "%)");
+            }
+
+            if (oversampling != 1.0) {
+                LOG.log(Level.INFO, "Oversampling ... BEGIN");
+                PlanarImage orginalImage = tiledImage;
+                tiledImage = ImageUtil.resizeImage(orginalImage, (int) ((orginalImage.getWidth() - 1) * oversampling) + 1);
+                orginalImage.dispose();
+                LOG.log(Level.INFO, "Image resized to : " + tiledImage.getWidth() + "x" + tiledImage.getHeight());
+                LOG.log(Level.INFO, "Oversampling ... END");
             }
 
             if (writeRasterNodes) {
@@ -302,6 +302,7 @@ public class HgtFileReader implements RunnableSource {
         maxLat = minLat + 1;
 
         long size = hgtFile.length();
+        int seconds;
         if (size == (3601 * 3601 * 2)) {
             pixels = 3601;
             seconds = 1;
@@ -312,7 +313,8 @@ public class HgtFileReader implements RunnableSource {
             throw new Error(hgtFile.getAbsolutePath() + " invalid file size");
         }
 
-        resolution = seconds / 3600.0;
+        double f = (2.0 - oversampling) / 3600.0 / oversampling;
+        resolution = seconds / 3600.0 / oversampling / (1.0 + f);
 
         //
         // Load HGT file
@@ -323,9 +325,7 @@ public class HgtFileReader implements RunnableSource {
         //
         // GRID TO GEO
         //
-        double fixFactor = calcFixFactor();
-        jtsTransformation = new AffineTransformation(resolution / fixFactor, 0, minLon, 0,
-                -resolution / fixFactor, maxLat);
+        jtsTransformation = new AffineTransformation(resolution, 0, minLon, 0, -resolution, maxLat);
 
         LOG.log(Level.INFO, String.format("Load %s ... END", hgtFile.getAbsolutePath()));
 
@@ -392,7 +392,7 @@ public class HgtFileReader implements RunnableSource {
         }
         final Collection<Object> noDatas = Arrays.asList(Double.NaN, Double.POSITIVE_INFINITY,
                 Double.NEGATIVE_INFINITY, Double.MAX_VALUE,
-//                Integer.MAX_VALUE, Integer.MIN_VALUE,
+                Integer.MAX_VALUE, Integer.MIN_VALUE,
                 -32768, -32768 * eleMultiply + eleOffset);
         ContourOpImage contourOpImage = new ContourOpImage(tiledImage, null, 0, levelInts,
                 (double)interval * eleMultiply, noDatas, false, true, false);

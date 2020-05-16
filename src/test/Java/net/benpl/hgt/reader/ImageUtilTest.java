@@ -5,27 +5,61 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.media.jai.PlanarImage;
-
 import java.awt.image.Raster;
 import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ImageUtilTest {
 
     @Tag("ignore")
     @Test
     public void scale() {
-        Integer[] words = new Integer[]{100, 200, 300,
-        200, 300, 400,
-        300, 400, 500};
+        Integer[] words = new Integer[]{
+                100, 200, 300,
+                200, 300, 400,
+                300, 400, 500};
 
         PlanarImage tiledImage = ImageUtil.buildImage(words, 3);
         System.out.println("Vorher");
         dumpImage(tiledImage);
         PlanarImage scaledImage = ImageUtil.resizeImage(tiledImage, 5);
+        System.out.println("Nachher");
+        dumpImage(scaledImage);
+    }
+
+    @Tag("ignore")
+    @Test
+    public void flatSurface() {
+        Integer[] words = new Integer[]{
+                100, 100, 100, 100, 100,
+                100, 200, 200, 200, 100,
+                100, 200, 200, 200, 100,
+                100, 200, 200, 200, 100,
+                100, 100, 100, 100, 100,};
+
+        PlanarImage tiledImage = ImageUtil.buildImage(words, 5);
+        System.out.println("Vorher");
+        dumpImage(tiledImage);
+        PlanarImage scaledImage = ImageUtil.resizeImage(tiledImage, 9);
+        System.out.println("Nachher");
+        dumpImage(scaledImage);
+    }
+
+    //    @Tag("ignore")
+    @Test
+    public void nodata() {
+        Integer[] words = new Integer[]{
+                100, 100, 100, 100, 100,
+                100, 200, 200, 200, 100,
+                100, 200, 200, 200, 100,
+                100, 200, 200, Integer.MIN_VALUE, 100,
+                100, 100, 100, 100, 100,};
+
+        PlanarImage tiledImage = ImageUtil.buildImage(words, 5);
+        System.out.println("Vorher");
+        dumpImage(tiledImage);
+        PlanarImage scaledImage = ImageUtil.resizeImage(tiledImage, 9);
         System.out.println("Nachher");
         dumpImage(scaledImage);
     }
@@ -48,7 +82,13 @@ public class ImageUtilTest {
         for (int y = 0; y < image.getWidth() && y < 10; y++) {
             System.out.print(y + ":");
             for (int x = 0; x < image.getHeight() && x < 20; x++) {
-                System.out.print(imageData.getSample(x,y,0) + ", ");
+
+                final int sample = imageData.getSample(x, y, 0);
+                if (sample == Integer.MIN_VALUE) {
+                    System.out.print("ND, ");
+                } else {
+                    System.out.print(sample + ", ");
+                }
             }
             System.out.println();
         }

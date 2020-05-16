@@ -8,19 +8,25 @@ plugins {
 dependencyUpdates.gradleReleaseChannel="current"
 
 group 'net.benpl'
-version '1.1.1'
+version '1.2.0'
 
 sourceCompatibility = JavaVersion.VERSION_1_8
 targetCompatibility = JavaVersion.VERSION_1_8
-compileJava.options.encoding = 'UTF-8'
+
+compileJava {
+    options.warnings = false
+    options.deprecation = false
+    options.compilerArgs += ["-Xlint:none", "-nowarn"]
+}
+compileJava.options.encoding= 'UTF-8'
 
 repositories {
     maven {
         url "http://maven.geomajas.org/"
     }
-    maven {
-        url "http://maven.geo-solutions.it/"
-    }
+//    maven {
+//        url "http://maven.geo-solutions.it/"
+//    }
     mavenLocal()
     mavenCentral()
 }
@@ -28,9 +34,12 @@ repositories {
 dependencies {
     implementation "javax.media:jai_core:1.1.3"
     implementation "javax.media:jai_codec:1.1.3"
-//    implementation "org.jaitools:jt-contour:1.5.0"
+    implementation "org.jaitools:jt-contour:1.5.0"
     implementation group: 'org.locationtech.jts', name: 'jts-core', version: '1.16.1'
 //    compile group: 'it.geosolutions.jaiext.utilities', name: 'jt-utilities', version: '1.1.14'
+//    compile group: 'it.geosolutions.jaiext', name: 'jaiext', version: '1.1.14'
+//    compile group: 'it.geosolutions.jaiext.scale2', name: 'jt-scale2', version: '1.1.14'
+//    compile group: 'it.geosolutions.jaiext.rescale', name: 'jt-rescale', version: '1.1.14'
     compileOnly "org.openstreetmap.osmosis:osmosis-core:0.48.0"
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.2'

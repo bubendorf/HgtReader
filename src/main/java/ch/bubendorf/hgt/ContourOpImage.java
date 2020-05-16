@@ -24,21 +24,6 @@ package ch.bubendorf.hgt;
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-import java.awt.image.RenderedImage;
-import java.lang.ref.SoftReference;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import javax.media.jai.PlanarImage;
-import javax.media.jai.ROI;
-import javax.media.jai.iterator.RectIter;
-import javax.media.jai.iterator.RectIterFactory;
 
 import org.jaitools.CollectionFactory;
 import org.jaitools.jts.LineSmoother;
@@ -48,8 +33,17 @@ import org.jaitools.media.jai.AttributeOpImage;
 import org.jaitools.media.jai.contour.ContourDescriptor;
 import org.jaitools.numeric.CompareOp;
 import org.jaitools.numeric.Range;
-
 import org.locationtech.jts.geom.LineString;
+
+import javax.media.jai.PlanarImage;
+import javax.media.jai.ROI;
+import javax.media.jai.iterator.RectIter;
+import javax.media.jai.iterator.RectIterFactory;
+import java.awt.image.RenderedImage;
+import java.lang.ref.SoftReference;
+import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Generates contours for user-specified levels of values in the source image.
@@ -638,11 +632,13 @@ public class ContourOpImage extends AttributeOpImage {
             iter2.nextLine();
             lineComplete(segments);
             y++;
-            if (y % 500 == 0 || lastProgressReport + 60 * 1000L <= System.currentTimeMillis()) {
+            if (y == src.getBounds().getHeight() - 1 ||
+                    y % 1000 == 1 ||
+                    lastProgressReport + 60 * 1000L <= System.currentTimeMillis()) {
                 System.gc();
                 long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
                 maxUsedMem = Math.max(maxUsedMem, usedMemory);
-                LOG.log(Level.FINER, "Build Contour Segments, line " + y + " / " + (int)(src.getBounds().getMaxY()) +
+                LOG.log(Level.FINER, "Build Contour Segments, line " + y + " / " + (int) (src.getBounds().getMaxY()) +
                         " (Used memory: " + usedMemory / 1024 / 1024 + " MB)");
                 lastProgressReport = System.currentTimeMillis();
             }
