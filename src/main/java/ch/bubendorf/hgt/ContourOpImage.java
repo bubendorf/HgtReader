@@ -36,7 +36,6 @@ import org.jaitools.numeric.Range;
 import org.locationtech.jts.geom.LineString;
 
 import javax.media.jai.PlanarImage;
-import javax.media.jai.ROI;
 import javax.media.jai.iterator.RectIter;
 import javax.media.jai.iterator.RectIterFactory;
 import java.awt.image.RenderedImage;
@@ -76,9 +75,6 @@ public class ContourOpImage extends AttributeOpImage {
     private static final int TR_VERTEX3 = 2;
     private static final int TL_VERTEX4 = 3;
 
-    /** The source image band to process */
-    private final int band;
-
     /** Values at which to generate contour intervals */
     private List<Double> contourLevels;
 
@@ -101,8 +97,10 @@ public class ContourOpImage extends AttributeOpImage {
     /** Output contour lines */
     private SoftReference<List<LineString>> cachedContours;
 
-    /** Whether to simplify contour lines by removing coincident vertices */
-    private final boolean simplify;
+    /**
+     * Whether to simplify contour lines by removing coincident vertices
+     */
+    private final static boolean simplify = true;
 
     /** Whether to apply Bezier smoothing to the contour lines */
     private final boolean smooth;
@@ -111,7 +109,7 @@ public class ContourOpImage extends AttributeOpImage {
      * Alpha parameter controlling Bezier smoothing
      * (see {@link LineSmoother})
      */
-    private final double smoothAlpha = 0.0;
+    private static final double smoothAlpha = 0.0;
 
     private long maxUsedMem = 0L;
 
@@ -137,11 +135,6 @@ public class ContourOpImage extends AttributeOpImage {
      *
      * @param source the source image
      *
-     * @param roi an optional {@code ROI} to constrain the areas for which
-     *     contours are generated
-     *
-     * @param band the band of the source image to process
-     *
      * @param levels values for which to generate contours
      *
      * @param interval interval between contour levels (ignored if {@code levels}
@@ -150,8 +143,6 @@ public class ContourOpImage extends AttributeOpImage {
      * @param noDataValues an optional {@code Collection} of values and/or {@code Ranges}
      *     to treat as NO_DATA
      *
-     * @param simplify whether to simplify contour lines by removing
-     *     colinear vertices
      *
      * @param strictNodata if {@code true} any NO_DATA values in a 2x2 data window will
      *     cause that window to be skipped; if {@code false} a single NO_DATA value
@@ -161,18 +152,13 @@ public class ContourOpImage extends AttributeOpImage {
      *     Bezier interpolation
      */
     public ContourOpImage(RenderedImage source,
-                          ROI roi,
-                          int band,
                           Collection<? extends Number> levels,
                           Double interval,
                           Collection<Object> noDataValues,
                           boolean strictNodata,
-                          boolean simplify,
                           boolean smooth) {
 
-        super(source, roi);
-
-        this.band = band;
+        super(source, null);
 
         if (levels != null) {
             this.contourLevels = new ArrayList<>();
@@ -205,7 +191,7 @@ public class ContourOpImage extends AttributeOpImage {
                         this.noDataNumbers.add(dz);
                     }
                 } else if (oelem instanceof Range) {
-                    Range<Double> r = (Range<Double>) oelem;
+                    @SuppressWarnings("unchecked") Range<Double> r = (Range<Double>) oelem;
                     Double min = r.getMin();
                     Double max = r.getMax();
                     Range<Double> rd = new Range<>(min, r.isMinIncluded(), max, r.isMaxIncluded());
@@ -222,7 +208,6 @@ public class ContourOpImage extends AttributeOpImage {
         }
 
         this.strictNodata = strictNodata;
-        this.simplify = simplify;
         this.smooth = smooth;
 
         // Set the precision to use for Geometry operations
@@ -384,15 +369,15 @@ public class ContourOpImage extends AttributeOpImage {
 
         RectIter iter1 = RectIterFactory.create(src, src.getBounds());
         RectIter iter2 = RectIterFactory.create(src, src.getBounds());
-        moveIterToBand(iter1, this.band);
-        moveIterToBand(iter2, this.band);
+        iter1.startBands();
+        iter2.startBands();
         iter1.startLines();
         iter2.startLines();
         iter2.nextLine();
 
         int y = (int) src.getBounds().getMinY();
         long lastProgressReport = 0;
-        while(!iter2.finishedLines() && !iter1.finishedLines()) {
+        while (!iter2.finishedLines() && !iter1.finishedLines()) {
             iter1.startPixels();
             iter2.startPixels();
 
@@ -420,7 +405,7 @@ public class ContourOpImage extends AttributeOpImage {
 
                 boolean processSquare = true;
                 boolean hasSingleNoData = false;
-                for (int i = 0; i < 4 && processSquare; i++) {
+                for (int i = 0; i < 4; i++) {
                     if (nodata[i]) {
                         if (strictNodata || hasSingleNoData) {
                             processSquare = false;
@@ -700,9 +685,8 @@ public class ContourOpImage extends AttributeOpImage {
         boolean first = true;
 
         RectIter iter = RectIterFactory.create(getSourceImage(0), getBounds());
+        iter.startBands();
         boolean hasNonNan = false;
-
-        moveIterToBand(iter, band);
 
         // scan all the pixels
         iter.startLines();
@@ -739,31 +723,11 @@ public class ContourOpImage extends AttributeOpImage {
 
         List<Double> result = new ArrayList<>();
         while (CompareOp.acompare(z, maxVal) <= 0) {
-//            System.out.println(z);
             result.add(z);
             z += contourInterval;
         }
 
         return result;
-    }
-
-    /**
-     * Positions an image iterator at the specified band.
-     *
-     * @param iter the iterator
-     * @param targetBand the band
-     */
-    private void moveIterToBand(RectIter iter, int targetBand) {
-        int iband = 0;
-        iter.startBands();
-
-        while(iband < targetBand && !iter.nextBandDone()) {
-            iband++;
-        }
-
-        if(iband != targetBand) {
-            throw new IllegalArgumentException("Band " + targetBand + " not found, max band is " + iband);
-        }
     }
 
     /**

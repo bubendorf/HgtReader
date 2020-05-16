@@ -1,13 +1,12 @@
 package ch.bubendorf.hgt;
 
-import java.util.Comparator;
-
 import org.jaitools.jts.Utils;
-
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.impl.PackedCoordinateSequence;
 import org.locationtech.jts.geom.impl.PackedCoordinateSequence.Double;
 import org.locationtech.jts.geom.impl.PackedCoordinateSequenceFactory;
+
+import java.util.Comparator;
 
 final class Segment {
     enum MergePoint {
@@ -294,7 +293,6 @@ final class Segment {
     static boolean sameOrdinate(double o1, double o2) {
         return Math.abs(o1 - o2) < EPS;
     }
-
 
     @Override
     public String toString() {

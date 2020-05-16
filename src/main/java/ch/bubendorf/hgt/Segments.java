@@ -1,11 +1,8 @@
 package ch.bubendorf.hgt;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import org.locationtech.jts.geom.LineString;
+
+import java.util.*;
 
 /**
  * A container for the segments collected by ContourOpImage.
@@ -16,7 +13,6 @@ import org.locationtech.jts.geom.LineString;
  * @version $Id$
  */
 class Segments {
-//    static final int MAX_SIZE = 16348; // this amounts to 130KB storage
     boolean simplify;
 
     Segment temp = new Segment();
@@ -73,8 +69,6 @@ class Segments {
         Segment segment = new Segment(x1, y1, x2, y2, simplify);
         startList.add(segment);
         endList.add(segment);
-        // insertInStartList(segment);
-        // insertInEndList(segment);
     }
 
     private boolean appendSegment(double x1, double y1, double x2, double y2) {
@@ -177,17 +171,6 @@ class Segments {
         }
         assert listConsistent() : "Start: " + startList + "\nEnd: " + endList;
     }
-
-    /*boolean sorted(List<Segment> list, Comparator<Segment> comparator) {
-        Segment prev = null;
-        for (Segment elem : list) {
-            if (prev != null && comparator.compare(prev, elem) > 0) {
-                return false;
-            }
-            prev = elem;
-        }
-        return true;
-    }*/
 
     /**
      * Informs the segments a new scanline is started

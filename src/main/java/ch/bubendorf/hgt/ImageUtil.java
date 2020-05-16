@@ -1,15 +1,5 @@
 package ch.bubendorf.hgt;
 
-/*import it.geosolutions.jaiext.interpolators.InterpolationBicubic;
-import it.geosolutions.jaiext.interpolators.InterpolationBilinear;
-import it.geosolutions.jaiext.range.Range;
-import it.geosolutions.jaiext.range.RangeFactory;
-import it.geosolutions.jaiext.rescale.RescaleCRIF;
-import it.geosolutions.jaiext.rescale.RescaleDescriptor;
-import it.geosolutions.jaiext.scale.Scale2CRIF;
-import it.geosolutions.jaiext.scale.Scale2Descriptor;
-import it.geosolutions.jaiext.utilities.*;*/
-
 import org.jaitools.imageutils.ImageUtils;
 
 import javax.media.jai.PlanarImage;
@@ -18,25 +8,10 @@ import java.awt.image.Raster;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-//import it.geosolutions.jaiext.interpolators.*;
-
 public class ImageUtil {
     private static final Logger LOG = Logger.getLogger(ImageUtil.class.getName());
 
-    private static boolean cubicInterpolation = true;
-
-    /*static {
-        try {
-            OperationRegistry registry = JAI.getDefaultInstance().getOperationRegistry();
-
-            registry.registerDescriptor(new Scale2Descriptor());
-            RIFRegistry.register(registry, "Scale2", "it.geosolutions.jaiext.scale", new Scale2CRIF());
-
-            registry.registerDescriptor(new RescaleDescriptor());
-            RIFRegistry.register(registry, "Rescale", "it.geosolutions.jaiext.rescale", new RescaleCRIF());
-       } catch (Exception ignored) {
-        }
-    } */
+    private final static boolean cubicInterpolation = true;
 
     /**
      * Converts HGT to tiled image
@@ -48,27 +23,6 @@ public class ImageUtil {
 
         return tiledImage;
     }
-
-    /*public static PlanarImage resizeImageAlt(PlanarImage image, int destSize) {
-        // See https://github.com/NetLogo/GIS-Extension/issues/4
-        System.setProperty("com.sun.media.jai.disableMediaLib", "true");
-
-        float scale = (float) destSize / image.getWidth();
-        Interpolation interpolation = Interpolation.getInstance(Interpolation.INTERP_BICUBIC);
-//        Interpolation interpolation = Interpolation.getInstance(Interpolation.INTERP_BILINEAR);
-        RenderingHints renderHints = new RenderingHints(KEY_RENDERING, VALUE_RENDER_QUALITY);
-        BorderExtender extender = BorderExtender.createInstance(BorderExtender.BORDER_COPY);
-        renderHints.add(new RenderingHints(JAI.KEY_BORDER_EXTENDER, extender));
-        ParameterBlock pb = new ParameterBlock();
-        pb.addSource(image);
-        pb.add(scale);
-        pb.add(scale);
-        pb.add(0.0F);
-        pb.add(0.0F);
-        pb.add(interpolation);
-        final PlanarImage resizedImage = JAI.create("scale", pb, renderHints).createInstance();
-        return resizedImage;
-    }*/
 
     public static PlanarImage resizeImage(PlanarImage image, int destSize) {
         Raster sourceRaster = image.getData();
@@ -84,7 +38,7 @@ public class ImageUtil {
                 int srcX = (int) Math.floor(srcXDouble);
                 double fracX = srcXDouble - srcX;
 
-                int value = 0;
+                int value;
                 int v11 = getSample(sourceRaster, srcX, srcY);
                 int v21 = getSample(sourceRaster, srcX + 1, srcY);
                 int v12 = getSample(sourceRaster, srcX, srcY + 1);
@@ -143,31 +97,8 @@ public class ImageUtil {
     }
 
     private static int bilinear(double xFrac, double yFrac, int v00, int v01, int v10, int v11) {
-        // Wenn NoData Werte vorkommen wird einfach der Durchschnitt der anderen Werte berechnet.
         if (isNoData(v00) || isNoData(v01) || isNoData(v10) || isNoData(v11)) {
             return Integer.MIN_VALUE;
-/*            int sum = 0;
-            int count = 0;
-            if (!isNoData(v00)) {
-                sum += v00;
-                count++;
-            }
-            if (!isNoData(v01)) {
-                sum += v01;
-                count++;
-            }
-            if (!isNoData(v10)) {
-                sum += v10;
-                count++;
-            }
-            if (!isNoData(v11)) {
-                sum += v11;
-                count++;
-            }
-            if (count == 0) {
-                return Integer.MIN_VALUE;
-            }
-            return (int)Math.round((double)sum / count);*/
         }
         double l1 = linear(xFrac, v00, v01);
         double l2 = linear(xFrac, v10, v11);
@@ -195,73 +126,4 @@ public class ImageUtil {
     private static double cubic(double f, double p0, double p1, double p2, double p3) {
         return p1 + 0.5 * f * (p2 - p0 + f * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3 + f * (3.0 * (p1 - p2) + p3 - p0)));
     }
-
-    /*public static PlanarImage resizeImageNeu(PlanarImage image, int destSize) {
-        // See https://github.com/NetLogo/GIS-Extension/issues/4
-        System.setProperty("com.sun.media.jai.disableMediaLib", "true");
-
-        double[] scales = new double[]{2.0d};
-        double[] offsets= new double[]{0.0d};
-        boolean useRoiAccessor = false;
-
-        double scale = (double)destSize / image.getWidth();
-        double destNoData = -1.0d;
-//        ROI roi= new ROIShape(new Rectangle(0, 0, image.getWidth(), image.getHeight()));
-        ROI roi = null;
-        Range noDataRange = null;
-
-//        Interpolation interpolation = Interpolation.getInstance(Interpolation.INTERP_NEAREST);
-//        Interpolation interpolation = Interpolation.getInstance(Interpolation.INTERP_BICUBIC);
-//        Interpolation interpolation = new InterpolationBicubic(8, noDataRange, false,
-//                -1.0, DataBuffer.TYPE_INT, false,8);
-        Interpolation interpolation = new InterpolationBilinear(8, noDataRange, useRoiAccessor,
-                destNoData, DataBuffer.TYPE_INT);
-
-        RenderingHints renderHints = new RenderingHints(KEY_RENDERING, VALUE_RENDER_QUALITY);
-        BorderExtender extender = BorderExtender.createInstance(BorderExtender.BORDER_COPY);
-//        BorderExtender extender = BorderExtender.createInstance(BorderExtender.BORDER_REFLECT);
-//        BorderExtender extender = BorderExtender.createInstance(BorderExtender.BORDER_ZERO);
-        renderHints.add(new RenderingHints(JAI.KEY_BORDER_EXTENDER , extender));
-        double[] backgroundValues = new double[]{-1};
-
-        RenderedOp op = Scale2Descriptor.create(image, scale, scale, 0.0, 0.0,
-                interpolation, roi, useRoiAccessor, noDataRange, backgroundValues, renderHints);
-
-//        Raster tile = op.getTile(0, 0);
-//        Raster[] rasters = op.getTiles();
-        return op.getRendering();
-    }*/
-
-    /*public static PlanarImage resizeImage(PlanarImage image, int destSize) {
-        // See https://github.com/NetLogo/GIS-Extension/issues/4
-        System.setProperty("com.sun.media.jai.disableMediaLib", "true");
-
-        int minx = image.getMinX(); // Minimum X value of the image
-        int miny = image.getMinY(); // Minimum Y value of the image
-        int width = image.getWidth(); // Image Width
-        int height= image.getHeight(); // Image Height
-
-        double[] scales = new double[]{2.0d};
-        double[] offsets= new double[]{1.0d};
-
-        ROI roi= new ROIShape(new Rectangle(minx, miny, width, (int)(height/2)));
-//        ROI roi = null;
-
-        byte value= 0;
-        boolean minIncluded = true;
-        boolean maxIncluded = true;
-
-        Range noDataRange = RangeFactory.create(value, minIncluded, value, maxIncluded);
-
-        boolean useRoiAccessor = false;
-
-        double destNoData = 0.0d;
-        RenderingHints hints = null;
-        RenderedOp rescaled = RescaleDescriptor.create(image, scales, offsets, roi,
-                noDataRange, useRoiAccessor, destNoData, hints);
-
-        Raster[] data = rescaled.getTiles();
-
-        return rescaled.getRendering();
-    }*/
 }

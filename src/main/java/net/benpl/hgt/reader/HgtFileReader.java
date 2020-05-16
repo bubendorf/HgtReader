@@ -18,8 +18,6 @@ import org.openstreetmap.osmosis.core.sort.v0_6.EntitySorter;
 import org.openstreetmap.osmosis.core.task.v0_6.RunnableSource;
 import org.openstreetmap.osmosis.core.task.v0_6.Sink;
 
-import javax.media.jai.JAI;
-import javax.media.jai.OperationRegistry;
 import javax.media.jai.PlanarImage;
 import javax.media.jai.TiledImage;
 import java.awt.image.Raster;
@@ -32,23 +30,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-//import org.jaitools.media.jai.contour.ContourDescriptor;
-//import org.jaitools.media.jai.contour.ContourRIF;
-
-// https://github.com/eclipse/imagen verwenden!
 public class HgtFileReader implements RunnableSource {
 
     private static final Logger LOG = Logger.getLogger(HgtFileReader.class.getName());
-
-    static {
-        try {
-            OperationRegistry registry = JAI.getDefaultInstance().getOperationRegistry();
-//            registry.registerDescriptor(new ContourDescriptor());
-//            RenderedImageFactory rif = new ContourRIF();
-//            RIFRegistry.register(registry, "Contour", "org.jaitools.media.jai", rif);
-        } catch (Exception ignored) {
-        }
-    }
 
     private final File hgtFile;
     private int interval;
@@ -122,7 +106,6 @@ public class HgtFileReader implements RunnableSource {
             sorter = new EntitySorter(new EntityContainerComparator(new EntityByTypeThenIdComparator()), false);
             sorter.setSink(sink);
             sorter.initialize(Collections.emptyMap());
-//            double fixFactor = calcFixFactor();
             final BoundContainer boundContainer = new BoundContainer(
                     new Bound(maxLon + resolution / 2, minLon - resolution / 2,
                             maxLat + resolution / 2, minLat - resolution / 2, "https://www.benpl.net/thegoat/about.html"));
@@ -150,16 +133,6 @@ public class HgtFileReader implements RunnableSource {
                 }
                 LOG.log(Level.INFO, "Write HGT nodes ... END");
             }
-            words = null; // forget the data!
-
-            /*if (oversampling != 1.0) {
-                LOG.log(Level.INFO, "Oversampling ... BEGIN");
-                PlanarImage orginalImage = tiledImage;
-                tiledImage = ImageUtil.resizeImage(orginalImage, (int) ((orginalImage.getWidth() - minusEins ) * oversampling) + minusEins);
-                orginalImage.dispose();
-                LOG.log(Level.INFO, "Image resized to : " + tiledImage.getWidth() + "x" + tiledImage.getHeight());
-                LOG.log(Level.INFO, "Oversampling ... END");
-            }*/
 
             if (flatThreshold >= 0) {
                 // Eliminate flat surfaces by setting its elevation to NODATA
@@ -188,8 +161,6 @@ public class HgtFileReader implements RunnableSource {
                                     Math.abs(vNorthEast - value) <= flatThreshold &&
                                     Math.abs(vSouthWest - value) <= flatThreshold &&
                                     Math.abs(vSouthEast - value) <= flatThreshold) {
-//                                System.out.println("x=" + x + ", y=" + y + ", value=" + value);
-//                                value = -32768 * eleMultiply + eleOffset;
                                 value = Integer.MIN_VALUE;
                                 numberOfFlatPoints++;
                             }
@@ -236,11 +207,11 @@ public class HgtFileReader implements RunnableSource {
             }
 
             if (writeContourLines) {
-                Collection<LineString> lines = buildContourLinesNeu(tiledImage);
+                Collection<LineString> lines = buildContourLines(tiledImage);
                 LOG.log(Level.INFO, "Write contour lines to output stream ... BEGIN");
                 for (LineString line : lines) {
-                    final double v = ((Double) line.getUserData()).doubleValue();
-                    int elev = (int)(v / eleMultiply);
+                    final double v = (Double) line.getUserData();
+                    int elev = (int) (v / eleMultiply);
                     if (elev <= 0 || elev > 9000) {
                         continue;
                     }
@@ -345,43 +316,7 @@ public class HgtFileReader implements RunnableSource {
         return words;
     }
 
-    /**
-     * Converts tiled image to contour lines
-     */
-    /*private Collection<LineString> buildContourLinesAlt(PlanarImage tiledImage) {
-        LOG.log(Level.INFO, "Convert to contour lines ... BEGIN");
-
-        ParameterBlockJAI pb = new ParameterBlockJAI("Contour");
-        pb.setSource("source0", tiledImage);
-        pb.setParameter("band", 0);
-        pb.setParameter("simplify", Boolean.TRUE);
-        pb.setParameter("strictNodata", Boolean.FALSE);
-
-        if (levels != null && levels.length() > 0) {
-            List<Integer> levelInts = Arrays.stream(levels.split(","))
-                    .map(l -> Integer.parseInt(l) * eleMultiply)
-                    .collect(Collectors.toList());
-            pb.setParameter("levels", levelInts);
-        } else {
-            pb.setParameter("interval", interval * eleMultiply);
-        }
-
-        pb.setParameter("nodata", Arrays.asList(Double.NaN, Double.POSITIVE_INFINITY,
-                Double.NEGATIVE_INFINITY, Double.MAX_VALUE, -32768, 32768 * eleMultiply + eleOffset));
-
-        RenderedOp dest = JAI.create("Contour", pb);
-
-        @SuppressWarnings("unchecked")
-        Collection<LineString> lines = (Collection<LineString>) dest.getProperty(ContourDescriptor.CONTOUR_PROPERTY_NAME);
-        dest.dispose();
-
-        LOG.log(Level.INFO, "Convert to contour lines ... END");
-        LOG.log(Level.FINE, "Number of produced lines: " + lines.size());
-
-        return lines;
-    }*/
-
-    private Collection<LineString> buildContourLinesNeu(PlanarImage tiledImage) {
+    private Collection<LineString> buildContourLines(PlanarImage tiledImage) {
         LOG.log(Level.INFO, "Convert to contour lines ... BEGIN");
 
         List<Integer> levelInts = null;
@@ -390,12 +325,12 @@ public class HgtFileReader implements RunnableSource {
                     .map(l -> Integer.parseInt(l) * eleMultiply)
                     .collect(Collectors.toList());
         }
-        final Collection<Object> noDatas = Arrays.asList(Double.NaN, Double.POSITIVE_INFINITY,
-                Double.NEGATIVE_INFINITY, Double.MAX_VALUE,
+        final Collection<Object> noDatas = Arrays.asList(/*Double.NaN, Double.POSITIVE_INFINITY,
+                Double.NEGATIVE_INFINITY, Double.MAX_VALUE,*/
                 Integer.MAX_VALUE, Integer.MIN_VALUE,
                 -32768, -32768 * eleMultiply + eleOffset);
-        ContourOpImage contourOpImage = new ContourOpImage(tiledImage, null, 0, levelInts,
-                (double)interval * eleMultiply, noDatas, false, true, false);
+        ContourOpImage contourOpImage = new ContourOpImage(tiledImage, levelInts,
+                (double) interval * eleMultiply, noDatas, false, false);
 
         @SuppressWarnings("unchecked")
         Collection<LineString> lines = (Collection<LineString>) contourOpImage.getProperty(ContourDescriptor.CONTOUR_PROPERTY_NAME);
