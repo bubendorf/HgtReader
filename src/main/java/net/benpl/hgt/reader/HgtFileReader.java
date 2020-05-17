@@ -78,6 +78,7 @@ public class HgtFileReader implements RunnableSource {
     private boolean writeContourLines = true;
     private boolean writeHgtNodes = false;
     private boolean writeRasterNodes = false;
+    private boolean garminMapUnits = false;
 
     private int pixels; // 1201 or 3601 (Auch bei Verwendung von oversampling)
     private int seconds;
@@ -227,7 +228,9 @@ public class HgtFileReader implements RunnableSource {
                         simplified.apply(jtsTransformation);
 
                         // Round to Garmin MapUnits
-                        simplified.apply(new GarminMapUnitFilter());
+                        if (garminMapUnits) {
+                            simplified.apply(new GarminMapUnitFilter());
+                        }
 
                         if (rdpDistance > 0) {
                             // Simplify the lines using the Douglas-Peucker algorithm
@@ -551,5 +554,9 @@ public class HgtFileReader implements RunnableSource {
 
     public void setMinNodesPerOpenWay(int minNodesPerOpenWay) {
         this.minNodesPerOpenWay = minNodesPerOpenWay;
+    }
+
+    public void setGarminMapUnits(boolean garminMapUnits) {
+        this.garminMapUnits = garminMapUnits;
     }
 }

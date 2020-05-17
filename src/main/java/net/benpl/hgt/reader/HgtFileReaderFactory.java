@@ -34,6 +34,7 @@ class HgtFileReaderFactory extends TaskManagerFactory {
         boolean writeContourLines = getBooleanArgument(taskConfig, "write-contour-ways", true);
         boolean writeHgtNodes = getBooleanArgument(taskConfig, "write-hgt-nodes", false);
         boolean writeRasterNodes = getBooleanArgument(taskConfig, "write-raster-nodes", false);
+        boolean garminMapUnits = getBooleanArgument(taskConfig, "round-to-garmin-map-unit", false);
 
         HgtFileReader task = new HgtFileReader(filePath);
         task.setInterval(interval);
@@ -58,6 +59,7 @@ class HgtFileReaderFactory extends TaskManagerFactory {
         task.setWriteHgtNodes(writeHgtNodes);
         task.setWriteRasterNodes(writeRasterNodes);
         task.setFlatThreshold(flatThreshold);
+        task.setGarminMapUnits(garminMapUnits);
 
         return new RunnableSourceManager(taskConfig.getId(), task, taskConfig.getPipeArgs());
     }
