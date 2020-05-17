@@ -1,13 +1,13 @@
 package ch.bubendorf.hgt;
 
 import org.jaitools.media.jai.contour.ContourDescriptor;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.LineString;
 
 import javax.media.jai.PlanarImage;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -93,12 +93,12 @@ public class ContourOpImageTest {
     }
 
     private Collection<LineString> getLineStrings(Integer[] words, boolean strictNodata, Integer... levelInts) {
-        PlanarImage tiledImage = ImageUtil.buildImage(words, (int)Math.sqrt(words.length));
+        PlanarImage tiledImage = ImageUtil.buildImage(words, (int) Math.sqrt(words.length));
         final Collection<Integer> levels = Arrays.asList(levelInts);
 
-        final Collection<Object> noDatas = Arrays.asList(NODATA);
-        ContourOpImage contourOpImage = new ContourOpImage(tiledImage, null, 0, levels,
-                0.0, noDatas, strictNodata, true, false);
+        final Collection<Object> noDatas = Collections.singletonList(NODATA);
+        ContourOpImage contourOpImage = new ContourOpImage(tiledImage, levels, 0.0, noDatas, strictNodata, false);
+        //noinspection unchecked
         return (Collection<LineString>) contourOpImage.getProperty(ContourDescriptor.CONTOUR_PROPERTY_NAME);
     }
 }

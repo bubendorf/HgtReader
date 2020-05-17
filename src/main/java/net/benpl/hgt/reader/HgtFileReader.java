@@ -1,6 +1,7 @@
 package net.benpl.hgt.reader;
 
 import ch.bubendorf.hgt.ContourOpImage;
+import ch.bubendorf.hgt.GarminMapUnitFilter;
 import ch.bubendorf.hgt.ImageUtil;
 import org.jaitools.media.jai.contour.ContourDescriptor;
 import org.locationtech.jts.geom.Coordinate;
@@ -79,6 +80,7 @@ public class HgtFileReader implements RunnableSource {
     private boolean writeRasterNodes = false;
 
     private int pixels; // 1201 or 3601 (Auch bei Verwendung von oversampling)
+    private int seconds;
     private double resolution;
     private AffineTransformation jtsTransformation;
 
@@ -216,12 +218,22 @@ public class HgtFileReader implements RunnableSource {
                         continue;
                     }
                     Geometry simplified = line;
-                    if (rdpDistance > 0) {
+/*                    if (rdpDistance > 0) {
                         // Simplify the lines using the Douglas-Peucker algorithm
-                        simplified = DouglasPeuckerSimplifier.simplify(line, rdpDistance);
-                    }
+                        simplified = DouglasPeuckerSimplifier.simplify(line, rdpDistance * oversampling / seconds);
+                    }*/
                     if (!simplified.isEmpty()) {
+                        // Transform into WGS84
                         simplified.apply(jtsTransformation);
+
+                        // Round to Garmin MapUnits
+                        simplified.apply(new GarminMapUnitFilter());
+
+                        if (rdpDistance > 0) {
+                            // Simplify the lines using the Douglas-Peucker algorithm
+                            simplified = DouglasPeuckerSimplifier.simplify(line, rdpDistance);
+                        }
+
                         handleLineString((LineString) simplified, elev, sorter);
                     }
                 }
@@ -273,7 +285,6 @@ public class HgtFileReader implements RunnableSource {
         maxLat = minLat + 1;
 
         long size = hgtFile.length();
-        int seconds;
         if (size == (3601 * 3601 * 2)) {
             pixels = 3601;
             seconds = 1;
@@ -284,8 +295,12 @@ public class HgtFileReader implements RunnableSource {
             throw new Error(hgtFile.getAbsolutePath() + " invalid file size");
         }
 
-        double f = (2.0 - oversampling) / 3600.0 / oversampling;
-        resolution = seconds / 3600.0 / oversampling / (1.0 + f);
+        if (oversampling == 1.0) {
+            resolution = seconds / 3600.0;
+        } else {
+            double f = (2.0 - oversampling) / 3600.0 / oversampling;
+            resolution = seconds / 3600.0 / oversampling / (1.0 + f);
+        }
 
         //
         // Load HGT file

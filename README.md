@@ -20,7 +20,7 @@ A small plug-in for the OpenStreetMap Osmosis Tool to read and convert SRTM/DEM 
 |`contour-ext-minor`*|value of `contour-ext-key`, means the contour line is in other intervals|String|elevation_minor|
 |`oversampling`|use this oversampling. Recommended value: 2|Integer|1|
 |`elevation-factor`|value of `elevation-factor`, Enhance the accuracy by this factor. Recommended value: 1000|Integer|1|
-|`simplify-contours-epsilon`|Simplify the line using the Ramen-Douglas-Peucker algorithm using the value in meters. 0 means no simplification. Recommende value: 0.5|Double|0.0|
+|`simplify-contours-epsilon`|Simplify the line using the Ramen-Douglas-Peucker algorithm. 0 means no simplification. Recommended value: 0.2|Double|0.0|
 |`major`|Interval for major elevation|Integer|500|
 |`medium`|Interval for medium elevation|Integer|100|
 |`max-nodes-per-way`|Maximum number of nodes per way. 0 means no limit. Recommended value: 1000|Integer|0|
