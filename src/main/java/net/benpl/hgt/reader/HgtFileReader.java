@@ -83,7 +83,6 @@ public class HgtFileReader implements RunnableSource {
     private int pixels; // 1201 or 3601 (Auch bei Verwendung von oversampling)
     private int seconds;
     private double resolution;
-    private AffineTransformation jtsTransformation;
 
     HgtFileReader(String filePath) {
         hgtFile = new File(filePath);
@@ -186,10 +185,10 @@ public class HgtFileReader implements RunnableSource {
                 LOG.log(Level.INFO, "Oversampling ... END");
             }
 
+            int imageWidth = tiledImage.getWidth();
             if (writeRasterNodes) {
                 // DEBUG: Add the tiledImage to the output
                 LOG.log(Level.INFO, "Write HGT and Raster nodes ... BEGIN");
-                int imageWidth = tiledImage.getWidth();
                 final Raster imageData = tiledImage.getData();
                 double lonStep = (maxLon - minLon) / (imageWidth - 1);
                 double latStep = (maxLat - minLat) / (imageWidth - 1);
@@ -212,6 +211,14 @@ public class HgtFileReader implements RunnableSource {
             if (writeContourLines) {
                 Collection<LineString> lines = buildContourLines(tiledImage);
                 LOG.log(Level.INFO, "Write contour lines to output stream ... BEGIN");
+                // Transform into WGS84
+                AffineTransformation jtsTransformation = new AffineTransformation(resolution, 0, minLon, 0, -resolution, maxLat);
+                // Transform to meter (More or less)
+                double xScale = 40075000.0 / 360.0 * Math.cos(Math.PI * (minLat + maxLat) / 2 / 180);
+                double yScale = 40075000.0 / 360.0;
+                AffineTransformation toMeterTransformation = AffineTransformation.scaleInstance(xScale, yScale);
+                // Transform back to WGS84
+                AffineTransformation backToWgs84Transformation = AffineTransformation.scaleInstance(1 / xScale, 1 / yScale);
                 for (LineString line : lines) {
                     final double v = (Double) line.getUserData();
                     int elev = (int) (v / eleMultiply);
@@ -219,12 +226,8 @@ public class HgtFileReader implements RunnableSource {
                         continue;
                     }
                     Geometry simplified = line;
-/*                    if (rdpDistance > 0) {
-                        // Simplify the lines using the Douglas-Peucker algorithm
-                        simplified = DouglasPeuckerSimplifier.simplify(line, rdpDistance * oversampling / seconds);
-                    }*/
+
                     if (!simplified.isEmpty()) {
-                        // Transform into WGS84
                         simplified.apply(jtsTransformation);
 
                         // Round to Garmin MapUnits
@@ -234,7 +237,9 @@ public class HgtFileReader implements RunnableSource {
 
                         if (rdpDistance > 0) {
                             // Simplify the lines using the Douglas-Peucker algorithm
+                            simplified.apply(toMeterTransformation);
                             simplified = DouglasPeuckerSimplifier.simplify(line, rdpDistance);
+                            simplified.apply(backToWgs84Transformation);
                         }
 
                         handleLineString((LineString) simplified, elev, sorter);
@@ -301,7 +306,7 @@ public class HgtFileReader implements RunnableSource {
         if (oversampling == 1.0) {
             resolution = seconds / 3600.0;
         } else {
-            double f = (2.0 - oversampling) / 3600.0 / oversampling;
+            double f = (2.0 - oversampling) / 3600.0 / oversampling; // Komische Formel!!
             resolution = seconds / 3600.0 / oversampling / (1.0 + f);
         }
 
@@ -310,11 +315,6 @@ public class HgtFileReader implements RunnableSource {
         //
         LOG.log(Level.INFO, String.format("Load %s ... BEGIN", hgtFile.getAbsolutePath()));
         Integer[] words = loadFile();
-
-        //
-        // GRID TO GEO
-        //
-        jtsTransformation = new AffineTransformation(resolution, 0, minLon, 0, -resolution, maxLat);
 
         LOG.log(Level.INFO, String.format("Load %s ... END", hgtFile.getAbsolutePath()));
 
@@ -340,7 +340,7 @@ public class HgtFileReader implements RunnableSource {
         List<Integer> levelInts = null;
         if (levels != null && levels.length() > 0) {
             levelInts = Arrays.stream(levels.split(","))
-                    .map(l -> Integer.parseInt(l) * eleMultiply)
+                    .map(l -> Integer.parseInt(l.trim()) * eleMultiply)
                     .collect(Collectors.toList());
         }
         final Collection<Object> noDatas = Arrays.asList(/*Double.NaN, Double.POSITIVE_INFINITY,
